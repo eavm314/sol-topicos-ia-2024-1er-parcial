@@ -86,7 +86,8 @@ def detect_people(
 
     img_array = process_uploaded_file(file)
     guns = detector.detect_guns(img_array, threshold)
-    segmentation = detector.segment_people(img_array, guns.boxes, threshold, max_distance)
+    segmentation = detector.segment_people(
+        img_array, guns.boxes, threshold, max_distance)
     return segmentation
 
 
@@ -97,13 +98,54 @@ def annotate_people(
     draw_boxes: bool = True,
     file: UploadFile = File(...),
     detector: GunDetector = Depends(get_gun_detector),
-) -> Segmentation:
+):
 
     img_array = process_uploaded_file(file)
     guns = detector.detect_guns(img_array, threshold)
-    segmentation = detector.segment_people(img_array, guns.boxes, threshold, max_distance)
+    segmentation = detector.segment_people(
+        img_array, guns.boxes, threshold, max_distance)
     annotated_img = annotate_segmentation(img_array, segmentation, draw_boxes)
 
+    img_pil = Image.fromarray(annotated_img)
+    image_stream = io.BytesIO()
+    img_pil.save(image_stream, format="JPEG")
+    image_stream.seek(0)
+    return Response(content=image_stream.read(), media_type="image/jpeg")
+
+
+@app.post("/detect")
+def detect(
+    threshold: float = 0.5,
+    max_distance: int = 10,
+    file: UploadFile = File(...),
+    detector: GunDetector = Depends(get_gun_detector),
+):
+
+    img_array = process_uploaded_file(file)
+    detection = detector.detect_guns(img_array, threshold)
+    segmentation = detector.segment_people(
+        img_array, detection.boxes, threshold, max_distance)
+
+    return {"detection": detection, "segmentation": segmentation}
+
+
+@app.post("/annotate")
+def annotate(
+    threshold: float = 0.5,
+    max_distance: int = 10,
+    draw_boxes: bool = True,
+    file: UploadFile = File(...),
+    detector: GunDetector = Depends(get_gun_detector),
+):
+
+    img_array = process_uploaded_file(file)
+    guns = detector.detect_guns(img_array, threshold)
+    segmentation = detector.segment_people(
+        img_array, guns.boxes, threshold, max_distance)
+    annotated_img = annotate_segmentation(img_array, segmentation, draw_boxes)
+    annotated_guns = annotate_detection(img_array, guns)
+    annotated_img = annotate_segmentation(
+        annotated_guns, segmentation, draw_boxes)
     img_pil = Image.fromarray(annotated_img)
     image_stream = io.BytesIO()
     img_pil.save(image_stream, format="JPEG")
