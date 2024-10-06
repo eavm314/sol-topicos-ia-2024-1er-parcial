@@ -86,7 +86,7 @@ def detect_people(
 
     img_array = process_uploaded_file(file)
     guns = detector.detect_guns(img_array, threshold)
-    segmentation = detector.segment_people(img_array, guns, threshold, max_distance)
+    segmentation = detector.segment_people(img_array, guns.boxes, threshold, max_distance)
     return segmentation
 
 
@@ -101,7 +101,7 @@ def annotate_people(
 
     img_array = process_uploaded_file(file)
     guns = detector.detect_guns(img_array, threshold)
-    segmentation = detector.segment_people(img_array, guns, threshold, max_distance)
+    segmentation = detector.segment_people(img_array, guns.boxes, threshold, max_distance)
     annotated_img = annotate_segmentation(img_array, segmentation, draw_boxes)
 
     img_pil = Image.fromarray(annotated_img)
