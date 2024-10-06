@@ -1,62 +1,11 @@
 from ultralytics import YOLO
 import numpy as np
 import cv2
-from shapely.geometry import Polygon, box
-from src.models import Detection, PredictionType, Segmentation
+from src.models import Detection, PredictionType, Segmentation, PersonType
 from src.config import get_settings
+from src.geometry import match_gun_bbox
 
 SETTINGS = get_settings()
-
-def point_to_segment_distance(px, py, x1, y1, x2, y2):
-    A = np.array([px - x1, py - y1])
-    B = np.array([x2 - x1, y2 - y1])
-    
-    dot_prod = np.dot(A, B)
-    norm_b_sq = np.dot(B, B)
-    proj = dot_prod / norm_b_sq if norm_b_sq != 0 else 0
-    
-    proj = max(0, min(1, proj))
-    closest_point = np.array([x1, y1]) + proj * B
-    dist = np.linalg.norm(np.array([px, py]) - closest_point)
-    
-    return dist
-
-def match_gun_bbox(segment: list[list[int]], bboxes: list[list[int]], max_distance: int = 10) -> list[int] | None:
-    for box in bboxes:
-        x1, y1, x2, y2 = box
-        # points = [
-        #     [[x, y1] for x in np.arange(x1, x2, 5)],
-        #     [[x, y2] for x in np.arange(x1, x2, 5)],
-        #     [[x1, y] for y in np.arange(y1, y2, 5)],
-        #     [[x2, y] for y in np.arange(y1, y2, 5)],
-        # ]
-
-        # for sx, sy in segment:
-        #     for line in points:
-        #         for x, y in line:
-        #             d = np.sqrt((x-sx)**2+(y-sy)**2)
-        #             if d <= max_distance:
-        #                 return box
-        
-        edges = [
-            (x1, y1, x1, y2),
-            (x2, y1, x2, y2),
-            (x1, y1, x2, y1),
-            (x1, y2, x2, y2)
-        ]
-
-        min_distance = 1000000
-
-        for px, py in segment:
-            for x1, y1, x2, y2 in edges:
-                dist = point_to_segment_distance(px, py, x1, y1, x2, y2)
-                min_distance = min(min_distance, dist)
-
-        if min_distance <= max_distance:
-            return box
-        
-
-    return None
 
 
 def annotate_detection(image_array: np.ndarray, detection: Detection) -> np.ndarray:
@@ -82,7 +31,7 @@ def annotate_segmentation(image_array: np.ndarray, segmentation: Segmentation, d
     safe_color = (0, 255, 0)
     danger_color = (255, 0, 0)
     for label, box, polygon in zip(segmentation.labels, segmentation.boxes, segmentation.polygons):
-        ann_color = safe_color if label == "safe" else danger_color
+        ann_color = safe_color if label == PersonType.safe else danger_color
         cv2.fillPoly(annotated_img, [np.int32(polygon)], ann_color)
         if draw_boxes:
             x1, y1, x2, y2 = box
@@ -152,9 +101,9 @@ class GunDetector:
         for segment in segments:
             near_gun = match_gun_bbox(segment, gun_boxes, max_distance)
             if near_gun:
-                labels.append("danger")
+                labels.append(PersonType.danger)
             else:
-                labels.append("safe")
+                labels.append(PersonType.safe)
 
         return Segmentation(
             pred_type=PredictionType.segmentation,

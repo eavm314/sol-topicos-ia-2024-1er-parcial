@@ -5,8 +5,10 @@ from fastapi.responses import Response
 import numpy as np
 from functools import cache
 from PIL import Image, UnidentifiedImageError
-from src.predictor import GunDetector, Detection, Segmentation, annotate_detection, annotate_segmentation
+from src.predictor import GunDetector, annotate_detection, annotate_segmentation
 from src.config import get_settings
+from src.models import Detection, Segmentation, Gun, Person, PixelLocation
+from src.geometry import find_area_polygon, find_center_box, find_center_polygon
 
 SETTINGS = get_settings()
 
@@ -151,6 +153,57 @@ def annotate(
     img_pil.save(image_stream, format="JPEG")
     image_stream.seek(0)
     return Response(content=image_stream.read(), media_type="image/jpeg")
+
+
+@app.post("/guns")
+def guns(
+    threshold: float = 0.5,
+    file: UploadFile = File(...),
+    detector: GunDetector = Depends(get_gun_detector),
+) -> list[Gun]:
+
+    img_array = process_uploaded_file(file)
+    detection = detector.detect_guns(img_array, threshold)
+
+    response = []
+    for box, label in zip(detection.boxes, detection.labels):
+        center_x, center_y = find_center_box(box)
+        response.append(
+            Gun(
+                gun_type=label.lower(),
+                location=PixelLocation(x=center_x, y=center_y)
+            )
+        )
+
+    return response
+
+
+@app.post("/people")
+def people(
+    threshold: float = 0.5,
+    max_distance: int = 10,
+    file: UploadFile = File(...),
+    detector: GunDetector = Depends(get_gun_detector),
+) -> list[Person]:
+
+    img_array = process_uploaded_file(file)
+    guns = detector.detect_guns(img_array, threshold)
+    segmentation = detector.segment_people(
+        img_array, guns.boxes, threshold, max_distance)
+
+    response = []
+    for polygon, label in zip(segmentation.polygons, segmentation.labels):
+        center_x, center_y = find_center_polygon(polygon)
+
+        response.append(
+            Person(
+                person_type=label,
+                location=PixelLocation(x=center_x, y=center_y),
+                area=find_area_polygon(polygon)
+            )
+        )
+
+    return response
 
 
 if __name__ == "__main__":
