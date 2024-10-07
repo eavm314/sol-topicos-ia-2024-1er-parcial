@@ -91,12 +91,16 @@ class GunDetector:
             for i, box in enumerate(prediction.boxes.xyxy.tolist())
             if i in indexes
         ]
-        segments = [
-            np.int32(segment).tolist()
-            for i, segment in enumerate(prediction.masks.xy)
-            if i in indexes
-        ]
 
+        if prediction.masks:
+            segments = [
+                np.int32(segment).tolist()
+                for i, segment in enumerate(prediction.masks.xy)
+                if i in indexes
+            ]
+        else:
+            segments = []
+            
         labels = []
         for segment in segments:
             near_gun = match_gun_bbox(segment, gun_boxes, max_distance)
