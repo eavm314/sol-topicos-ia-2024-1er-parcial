@@ -8,6 +8,7 @@ dependencies = [
     "fastapi[standard]>=0.115.0",
     "jupyter>=1.1.1",
     "pydantic-settings>=2.5.2",
+    "pytest-mock>=3.14.0",
     "pytest>=8.3.3",
     "shapely>=2.0.6",
     "torch>=2.4.1",
